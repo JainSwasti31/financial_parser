@@ -125,8 +125,6 @@ class GeminiOCRProvider(OCRProvider):
 
 class TesseractOCRProvider(OCRProvider):
     def extract_text(self, file_path: str, mime_type: str) -> Tuple[str, float]:
-        import pytesseract
-        from PIL import Image
         start = time.time()
         ext = os.path.splitext(file_path)[1].lower()
 
@@ -134,6 +132,20 @@ class TesseractOCRProvider(OCRProvider):
             if ext == ".pdf":
                 import fitz
                 doc = fitz.open(file_path)
+                # Prefer the PDF's embedded text layer. It is faster and more
+                # accurate than raster OCR and requires no external OCR process.
+                embedded_pages = [page.get_text("text").strip() for page in doc]
+                if sum(len(page) for page in embedded_pages) >= 20:
+                    text = "\n\n".join(
+                        f"--- Page {index} ---\n{page_text}"
+                        for index, page_text in enumerate(embedded_pages, start=1)
+                        if page_text
+                    )
+                    doc.close()
+                    return text.strip(), time.time() - start
+
+                import pytesseract
+                from PIL import Image
                 all_text = []
                 for i, page in enumerate(doc):
                     pix = page.get_pixmap(dpi=200)
@@ -143,6 +155,8 @@ class TesseractOCRProvider(OCRProvider):
                 doc.close()
                 text = "\n\n".join(all_text)
             else:
+                import pytesseract
+                from PIL import Image
                 img = Image.open(file_path)
                 text = pytesseract.image_to_string(img, config="--psm 6")
 

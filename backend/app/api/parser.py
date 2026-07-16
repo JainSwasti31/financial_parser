@@ -58,13 +58,20 @@ def trigger_process(
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    if doc.status == ProcessingStatus.Processing:
-        raise HTTPException(status_code=409, detail="Document is already being processed")
-
     # Check access: Analysts can only process their own docs
     from app.models.user import Role
     if current_user.role != Role.Admin and doc.uploaded_by != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to process this document")
+
+    if doc.status == ProcessingStatus.Processing:
+        raise HTTPException(status_code=409, detail="Document is already being processed")
+
+    import os
+    if not os.path.isfile(doc.file_path):
+        raise HTTPException(
+            status_code=409,
+            detail="The uploaded file is no longer available on server storage. Upload the same file again to restore it, then process it.",
+        )
 
     doc.status = ProcessingStatus.Processing
     doc.processing_progress = 0
@@ -89,6 +96,13 @@ def trigger_reprocess(
     from app.models.user import Role
     if current_user.role != Role.Admin and doc.uploaded_by != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
+
+    import os
+    if not os.path.isfile(doc.file_path):
+        raise HTTPException(
+            status_code=409,
+            detail="The uploaded file is no longer available on server storage. Upload the same file again to restore it, then reprocess it.",
+        )
 
     # Reset status to allow reprocessing
     doc.status = ProcessingStatus.Uploaded

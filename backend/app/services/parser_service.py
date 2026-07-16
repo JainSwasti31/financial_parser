@@ -215,21 +215,32 @@ def process_document(document_id: int, db: Session) -> dict:
 
 def _fail_document(db: Session, doc: Document, doc_id: int, reason: str):
     doc.status = ProcessingStatus.Review_Pending
-    _set_progress(db, doc, 100, "Failed - review required")
+    concise_reason = " ".join(str(reason).split())[:240]
+    _set_progress(db, doc, 100, f"Failed: {concise_reason}")
     log_action(db, doc_id, "Parsing Failed", "Review Pending", reason)
 
 
 def _review_document(db: Session, doc: Document, doc_id: int, raw_text: str,
                      doc_type: str, reason: str):
     doc.status = ProcessingStatus.Review_Pending
-    _set_progress(db, doc, 100, "Review required")
-    # Save partial report with raw text only
-    report = ParsedReport(
-        document_id=doc_id,
-        parsed_data={"document_type": doc_type, "raw_text": raw_text, "parsed_fields": {}},
-        validation_status="Review Pending",
-        review_status="Pending",
-    )
-    db.add(report)
+    concise_reason = " ".join(str(reason).split())[:240]
+    _set_progress(db, doc, 100, f"Review required: {concise_reason}")
+    # Reprocessing must update the existing report. Creating another row can
+    # leave the UI reading stale data from the first report.
+    report = db.query(ParsedReport).filter(ParsedReport.document_id == doc_id).first()
+    if report is None:
+        report = ParsedReport(document_id=doc_id)
+        db.add(report)
+    report.parsed_data = {
+        "document_type": doc_type,
+        "raw_text": raw_text,
+        "parsed_fields": {},
+        "processing_error": concise_reason,
+    }
+    report.field_validations = {}
+    report.validation_status = "Review Pending"
+    report.review_status = "Pending"
+    report.reviewed_by = None
+    report.remarks = concise_reason
     db.commit()
     log_action(db, doc_id, "Parsing Flagged for Review", "Review Pending", reason)

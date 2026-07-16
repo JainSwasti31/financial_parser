@@ -71,7 +71,7 @@ const DocumentDetail = () => {
       setDoc(prev => ({ ...prev, status: 'Processing' }));
       startPolling();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to start processing.');
+      setError(err.response?.data?.error?.message || err.response?.data?.detail || 'Failed to start processing.');
     }
   };
 
@@ -82,7 +82,7 @@ const DocumentDetail = () => {
       setDoc(prev => ({ ...prev, status: 'Processing' }));
       startPolling();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to start reprocessing.');
+      setError(err.response?.data?.error?.message || err.response?.data?.detail || 'Failed to start reprocessing.');
     }
   };
 
@@ -301,7 +301,9 @@ const DocumentDetail = () => {
           <div>
             <p className="text-orange-300 font-semibold">Flagged for Manual Review</p>
             <p className="text-slate-400 text-sm mt-1">
-              The AI could not fully parse this document. This may be due to a corrupted file, unsupported format, or unreadable scan quality. Try reprocessing or contact support.
+              {result?.processing_stage && !['Completed', 'Review required'].includes(result.processing_stage)
+                ? result.processing_stage
+                : 'The document could not be fully parsed. Review the extracted fields or try reprocessing.'}
             </p>
             <button onClick={handleReprocess} className="mt-3 text-sm text-orange-300 hover:text-orange-200 underline">
               Try Reprocessing

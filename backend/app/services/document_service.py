@@ -38,6 +38,23 @@ async def save_uploaded_file(file: UploadFile, current_user: User, db: Session) 
     # Check duplicate
     existing_doc = db.query(Document).filter(Document.file_hash == file_hash).first()
     if existing_doc:
+        # Render and similar hosts use ephemeral filesystems unless a disk is
+        # attached. Restore an owned document whose database row survived but
+        # whose uploaded file disappeared after a deployment.
+        if not os.path.exists(existing_doc.file_path) and (
+            current_user.role == Role.Admin or existing_doc.uploaded_by == current_user.id
+        ):
+            os.makedirs(os.path.dirname(existing_doc.file_path), exist_ok=True)
+            with open(existing_doc.file_path, "wb") as restored_file:
+                restored_file.write(content)
+            existing_doc.file_size = file_size
+            existing_doc.status = ProcessingStatus.Uploaded
+            existing_doc.processing_progress = 0
+            existing_doc.processing_stage = "Upload restored; ready to process"
+            db.commit()
+            db.refresh(existing_doc)
+            log_action(db, existing_doc.id, "Document File Restored", "Success", "Missing upload restored after storage reset")
+            return existing_doc
         raise HTTPException(status_code=409, detail="A document with this exact content has already been uploaded.")
     
     # Save file
