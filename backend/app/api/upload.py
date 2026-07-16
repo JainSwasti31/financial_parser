@@ -7,6 +7,9 @@ from app.models.user import User
 from app.schemas.document import DocumentResponse
 from app.services.document_service import save_uploaded_file
 from app.core.config import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -27,6 +30,14 @@ async def upload_batch(
         except HTTPException as exc:
             db.rollback()
             failed.append({"name": file.filename, "status_code": exc.status_code, "error": exc.detail})
+        except Exception:
+            db.rollback()
+            logger.exception("Batch upload failed for %s", file.filename)
+            failed.append({
+                "name": file.filename,
+                "status_code": 500,
+                "error": "The server could not store this file. Check upload storage configuration.",
+            })
     return {"uploaded": uploaded, "failed": failed, "total": len(files)}
 
 @router.post("/", response_model=DocumentResponse)

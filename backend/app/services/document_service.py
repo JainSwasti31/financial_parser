@@ -44,9 +44,14 @@ async def save_uploaded_file(file: UploadFile, current_user: User, db: Session) 
         if not os.path.exists(existing_doc.file_path) and (
             current_user.role == Role.Admin or existing_doc.uploaded_by == current_user.id
         ):
-            os.makedirs(os.path.dirname(existing_doc.file_path), exist_ok=True)
-            with open(existing_doc.file_path, "wb") as restored_file:
+            # Never reuse a stale absolute path from another host/deployment.
+            # Rebuild it under this instance's configured private upload root.
+            safe_filename = f"{file_hash[:8]}_{os.path.basename(file.filename)}"
+            restored_path = os.path.join(UPLOAD_DIR, safe_filename)
+            os.makedirs(UPLOAD_DIR, exist_ok=True)
+            with open(restored_path, "wb") as restored_file:
                 restored_file.write(content)
+            existing_doc.file_path = restored_path
             existing_doc.file_size = file_size
             existing_doc.status = ProcessingStatus.Uploaded
             existing_doc.processing_progress = 0
