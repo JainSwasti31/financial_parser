@@ -11,7 +11,7 @@ The application includes role-aware Admin/Analyst access, duplicate-file detecti
 - Frontend: React 19, Vite, React Router, Axios, Tailwind CSS, Recharts
 - Backend: FastAPI, SQLAlchemy, Alembic, Pydantic, JWT bearer authentication
 - Database: PostgreSQL (recommended); SQLite is supported for a basic local demo
-- OCR/AI: Google Gemini or local Tesseract; PyMuPDF renders PDF pages
+- OCR/AI: embedded PDF text via PyMuPDF, local Tesseract for scans/images, rule-based classification, and Gemini structured extraction with an offline ITR fallback
 - Rich extraction: PyMuPDF table detection and OpenCV QR/signature-region detection
 - Background processing: FastAPI BackgroundTasks with persisted polling progress
 - Reports: ReportLab PDF, Open XML XLSX generation, standard-library CSV
@@ -21,7 +21,9 @@ The application includes role-aware Admin/Analyst access, duplicate-file detecti
 
 ### Local installation
 
-Prerequisites: Python 3.11+, Node.js 20+, PostgreSQL 15+, and optionally Tesseract OCR.
+Prerequisites: Python 3.11+, Node.js 20+, PostgreSQL 15+, and Tesseract OCR when processing scanned PDFs or images. Text-based PDFs are read directly through PyMuPDF and do not require Tesseract.
+
+On Windows, install Tesseract and add its installation directory (commonly `C:\Program Files\Tesseract-OCR`) to `PATH`. Verify it with `tesseract --version`. The backend Docker image installs Tesseract automatically.
 
 1. Clone the repository and enter it:
 
@@ -61,9 +63,10 @@ Prerequisites: Python 3.11+, Node.js 20+, PostgreSQL 15+, and optionally Tessera
 2. Start an individual parse or use the **Bulk parse** action.
 3. The API returns immediately while FastAPI processes documents in background worker threads with independent database sessions.
 4. The frontend polls `/api/v1/parser/result/{document_id}` and displays the persisted processing stage and percentage.
-5. Parsing stores extracted fields, 0–100 confidence scores, validation results, tables, candidate signature regions, and decoded QR values.
-6. An Admin or owning Analyst reviews the result, edits fields if needed, and approves or rejects it.
-7. Approved data can be exported as PDF, XLSX, or CSV.
+5. Text-based PDFs use their embedded text layer; scanned PDFs/images use Tesseract. Rule-based classification avoids an additional Gemini request, while Gemini performs structured extraction. ITR parsing has a deterministic fallback when Gemini is unavailable or quota-limited.
+6. Parsing stores extracted fields, 0–100 confidence scores, validation results, tables, candidate signature regions, and decoded QR values.
+7. An Admin or owning Analyst reviews the result, edits fields if needed, and approves or rejects it.
+8. Approved data can be exported as PDF, XLSX, or CSV.
 
 ### Docker installation
 
@@ -95,9 +98,9 @@ Backend variables are documented in `backend/.env.example`:
 | `UPLOAD_DIR` | No | Private uploaded-file directory |
 | `MAX_UPLOAD_SIZE_MB` | No | Upload limit; default 25 MB |
 | `MAX_BATCH_SIZE` | No | Maximum files accepted by one batch request; default 20 |
-| `OCR_PROVIDER` | Yes | `gemini` or `tesseract` |
-| `AI_PROVIDER` | Yes | Classifier provider; currently Gemini is the production path |
-| `GEMINI_API_KEY` | For Gemini | Google Gemini API key |
+| `OCR_PROVIDER` | Yes | `tesseract` (recommended/default) or `gemini`; embedded PDF text is used before Tesseract |
+| `AI_PROVIDER` | Yes | `rule_based` (recommended/default) or `gemini` document classification |
+| `GEMINI_API_KEY` | For structured extraction or Gemini providers | Google Gemini API key |
 
 Frontend variables are documented in `frontend/.env.example`:
 
@@ -161,11 +164,46 @@ Confidence data is stored at `parsed_data.field_confidences`. Rich results are s
 
 ### Frontend on Vercel
 
-Import the repository, set the Root Directory to `frontend`, use `npm run build`, and set the output directory to `dist`. Configure `VITE_API_BASE_URL=https://<backend-host>/api/v1`. `frontend/vercel.json` supplies SPA routing.
+Import the repository, set the Root Directory to `frontend`, use `npm run build`, and set the output directory to `dist`. `frontend/vercel.json` supplies SPA routing.
+
+Production frontend: `https://financial-parser-nu.vercel.app`
+
+Configure this Vercel build variable and redeploy whenever it changes:
+
+```env
+VITE_API_BASE_URL=https://financial-parser.onrender.com/api/v1
+```
 
 ### Backend on Render
 
-Use `render.yaml`, attach PostgreSQL and a persistent disk for `/app/uploads`, then set `SECRET_KEY`, `GEMINI_API_KEY`, and `FRONTEND_ORIGIN`. The start command runs migrations before Uvicorn.
+Use the repository-level `render.yaml` with the Docker runtime. The Docker image installs Tesseract. Render supplies `PORT`; do not hardcode or override it. The application must bind to `0.0.0.0`.
+
+Production backend: `https://financial-parser.onrender.com`
+
+Set these Render variables:
+
+```env
+HOST=0.0.0.0
+DATABASE_URL=<managed-postgresql-url>
+SECRET_KEY=<long-random-secret>
+FRONTEND_ORIGIN=https://financial-parser-nu.vercel.app
+UPLOAD_DIR=/app/uploads
+OCR_PROVIDER=tesseract
+AI_PROVIDER=rule_based
+GEMINI_API_KEY=<gemini-key>
+```
+
+Before the first production start and after adding a migration, run `alembic upgrade head` from a Render shell. Run `python seed_users.py` only when initial seed accounts are required; change or remove the documented development passwords immediately.
+
+Attach a persistent Render disk mounted at `/app/uploads`. Without a disk, Render's ephemeral filesystem removes uploaded documents during redeployment even though their database rows remain. If that already occurred, deploy the latest backend, upload the same file again to restore it, and then process/reprocess it. The API returns `409` with a restoration instruction when a source file is missing.
+
+Health and API endpoints:
+
+- `HEAD /` and `GET /` return `200`.
+- Swagger: `https://financial-parser.onrender.com/docs`
+- OpenAPI JSON: `https://financial-parser.onrender.com/api/v1/openapi.json`
+
+If the browser reports a CORS error together with a backend `500`, inspect the Render logs first because the underlying server exception may be the actual cause. Confirm that `FRONTEND_ORIGIN` exactly matches the Vercel origin, with HTTPS and no trailing slash. Batch upload errors are returned as structured per-file results.
 
 ### Backend on Railway
 
@@ -184,7 +222,7 @@ For production, place uploaded files on a persistent disk or migrate storage to 
 - Admins can access all documents; Analysts access documents they uploaded.
 - PostgreSQL is the production database.
 - Uploaded documents are private and are not mounted as public static assets.
-- Gemini credentials and internet access are available when Gemini is selected.
+- Tesseract is available for scanned documents; Gemini credentials and internet access are available for structured extraction.
 - Background jobs run in the same application instance and use independent SQLAlchemy sessions.
 - Confidence scores express extraction/validation confidence and are not calibrated financial-risk scores.
 - Signature results indicate visual candidate regions only.
@@ -201,7 +239,8 @@ For production, place uploaded files on a persistent disk or migrate storage to 
 - Public self-registration currently permits selecting a role and should be restricted before an untrusted production launch.
 - The backend requires `SECRET_KEY` from the environment, but production deployments should additionally use a managed secret store and rotation policy.
 - Admin user-management UI/API, account deactivation, global toast notifications, and a global error boundary are not implemented.
-- Uploads use local/persistent-disk storage rather than object storage.
+- Uploads use local/persistent-disk storage rather than object storage; deployments without a persistent disk lose files on restart/redeploy.
+- Gemini free-tier limits can still affect structured extraction for document types without deterministic fallbacks. Tesseract OCR and rule-based classification reduce normal Gemini usage to approximately one structured-extraction request per document.
 - Filename-based type inference is used only as a filter fallback before parsing.
 - Search over JSON fields is performed in application code and may not scale to large datasets.
 - Automated browser E2E tests are not yet included.
