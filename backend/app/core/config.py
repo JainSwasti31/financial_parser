@@ -5,6 +5,8 @@ from typing import Optional
 class Settings(BaseSettings):
     PROJECT_NAME: str = "AI Financial Document Parser"
     API_V1_STR: str = "/api/v1"
+    HOST: str = "127.0.0.1"
+    PORT: int
     
     # DATABASE_URL can be set in .env. Default to sqlite for easy local testing.
     DATABASE_URL: str = "sqlite:///./test.db"

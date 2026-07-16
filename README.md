@@ -41,7 +41,7 @@ Prerequisites: Python 3.11+, Node.js 20+, PostgreSQL 15+, and optionally Tessera
    cp .env.example .env
    alembic upgrade head
    python seed_users.py
-   uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+   python run.py
    ```
 
 3. In a second terminal, configure and start the frontend:
@@ -71,11 +71,11 @@ Prerequisites: Python 3.11+, Node.js 20+, PostgreSQL 15+, and optionally Tessera
 2. Run:
 
    ```bash
-   docker compose up --build
-   docker compose exec backend python seed_users.py
+   docker compose --env-file backend/.env up --build
+   docker compose --env-file backend/.env exec backend python seed_users.py
    ```
 
-3. Open the frontend at `http://127.0.0.1:5173` and Swagger at `http://127.0.0.1:8000/docs`.
+3. Open the frontend at `http://127.0.0.1:5173` and Swagger at `http://127.0.0.1:<PORT>/docs`, using the backend `PORT` configured in `.env`.
 
 ## Environment Variables
 
@@ -85,6 +85,8 @@ Backend variables are documented in `backend/.env.example`:
 |---|---:|---|
 | `PROJECT_NAME` | No | FastAPI application name |
 | `API_V1_STR` | No | API prefix; default `/api/v1` |
+| `HOST` | Yes | Backend bind host, such as `127.0.0.1` locally or `0.0.0.0` in a container |
+| `PORT` | Yes | Backend HTTP port used by the launcher and Docker Compose |
 | `DATABASE_URL` | Yes | SQLAlchemy PostgreSQL or SQLite URL |
 | `DB_CONNECT_TIMEOUT_SECONDS` | No | PostgreSQL connection timeout; default 10 seconds |
 | `SECRET_KEY` | Yes | Long random JWT signing key |
@@ -139,9 +141,9 @@ ocr/
 
 FastAPI generates interactive documentation from the running application:
 
-- Swagger UI: `http://127.0.0.1:8000/docs`
-- ReDoc: `http://127.0.0.1:8000/redoc`
-- OpenAPI JSON: `http://127.0.0.1:8000/api/v1/openapi.json`
+- Swagger UI: `http://127.0.0.1:<PORT>/docs`
+- ReDoc: `http://127.0.0.1:<PORT>/redoc`
+- OpenAPI JSON: `http://127.0.0.1:<PORT>/api/v1/openapi.json`
 
 The checked-in endpoint reference is [docs/api.md](docs/api.md). Except for registration and login, endpoints require `Authorization: Bearer <token>`. Authorization is additionally scoped by role and document ownership.
 

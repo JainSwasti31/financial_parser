@@ -3,7 +3,9 @@ import requests
 import time
 import os
 
-BASE = "http://localhost:8000/api/v1"
+from app.core.config import settings
+
+BASE = f"http://{settings.HOST}:{settings.PORT}{settings.API_V1_STR}"
 FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "test_fixtures")
 
 # Login

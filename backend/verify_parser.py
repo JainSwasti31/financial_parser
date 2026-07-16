@@ -1,6 +1,8 @@
 import requests
 
-BASE = "http://localhost:8000/api/v1"
+from app.core.config import settings
+
+BASE = f"http://{settings.HOST}:{settings.PORT}{settings.API_V1_STR}"
 
 # Login
 r = requests.post(f"{BASE}/auth/login", json={"email": "admin@example.com", "password": "Admin123!"})

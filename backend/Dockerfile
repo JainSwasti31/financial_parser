@@ -16,8 +16,8 @@ COPY alembic ./alembic
 COPY alembic.ini ./
 COPY app ./app
 COPY seed_users.py ./
+COPY run.py ./
 
 RUN mkdir -p /app/uploads
 
-EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "run.py"]

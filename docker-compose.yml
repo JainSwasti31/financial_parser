@@ -19,6 +19,8 @@ services:
     build: ./backend
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/financial_parser
+      HOST: 0.0.0.0
+      PORT: ${PORT}
       DB_CONNECT_TIMEOUT_SECONDS: 10
       SECRET_KEY: ${SECRET_KEY:-local-development-only-change-me}
       ACCESS_TOKEN_EXPIRE_MINUTES: 1440
@@ -29,11 +31,11 @@ services:
       OCR_PROVIDER: ${OCR_PROVIDER:-gemini}
       AI_PROVIDER: ${AI_PROVIDER:-gemini}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-    command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+    command: ["sh", "-c", "alembic upgrade head && python run.py"]
     volumes:
       - uploads_data:/app/uploads
     ports:
-      - "8000:8000"
+      - "${PORT}:${PORT}"
     depends_on:
       db:
         condition: service_healthy
@@ -42,7 +44,7 @@ services:
     build:
       context: ./frontend
       args:
-        VITE_API_BASE_URL: http://127.0.0.1:8000/api/v1
+        VITE_API_BASE_URL: http://127.0.0.1:${PORT}/api/v1
     ports:
       - "5173:80"
     depends_on:
