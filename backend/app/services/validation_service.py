@@ -17,6 +17,7 @@ Overall validation_status:
 """
 import re
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from typing import Dict, Any, Tuple
 
 
@@ -51,7 +52,11 @@ def _ifsc(v: str): return (bool(IFSC_RE.match(v.upper())), "Valid IFSC" if IFSC_
 def _account(v: str): return (bool(ACCOUNT_RE.match(re.sub(r"[\s\-]", "", v))), "Valid account number" if ACCOUNT_RE.match(re.sub(r"[\s\-]", "", v)) else f"Invalid account number: '{v}'")
 def _date(v: str):
     value = v.strip()
-    formats = ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%d.%m.%Y", "%d %b %Y", "%d %B %Y")
+    formats = (
+        "%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%d.%m.%Y",
+        "%d %b %Y", "%d %B %Y", "%d-%b-%Y", "%d-%B-%Y",
+        "%b %d, %Y", "%B %d, %Y",
+    )
     for fmt in formats:
         try:
             datetime.strptime(value, fmt)
@@ -59,10 +64,84 @@ def _date(v: str):
         except ValueError:
             continue
     return False, f"Invalid date format: '{v}'"
+
+
+def _date_range(v: str):
+    parts = re.split(r"\s+(?:to|through|until|–|—)\s+", v.strip(), maxsplit=1, flags=re.IGNORECASE)
+    if len(parts) != 2:
+        return False, f"Invalid date range: '{v}' (expected start date to end date)"
+    start_ok, _ = _date(parts[0])
+    end_ok, _ = _date(parts[1])
+    if not start_ok or not end_ok:
+        return False, f"Invalid date range: '{v}'"
+    return True, "Valid date range"
+
+
+def _month_period(v: str):
+    value = v.strip()
+    for fmt in ("%B %Y", "%b %Y", "%m/%Y", "%m-%Y", "%Y-%m"):
+        try:
+            datetime.strptime(value, fmt)
+            return True, "Valid month/year period"
+        except ValueError:
+            continue
+    return False, f"Invalid month/year period: '{v}'"
+
+
+def _statement_period(v: str):
+    range_ok, _ = _date_range(v)
+    if range_ok:
+        return True, "Valid statement date range"
+    month_ok, _ = _month_period(v)
+    if month_ok:
+        return True, "Valid statement month/year"
+    return False, f"Invalid statement period: '{v}'"
+
+
+def _assessment_year(v: str):
+    match = re.fullmatch(r"(\d{4})\s*[-/]\s*(\d{2}|\d{4})", v.strip())
+    if not match:
+        return False, f"Invalid assessment year: '{v}' (expected YYYY-YY or YYYY-YYYY)"
+    start = int(match.group(1))
+    end_text = match.group(2)
+    end = int(end_text) if len(end_text) == 4 else (start // 100) * 100 + int(end_text)
+    if end != start + 1:
+        return False, f"Invalid assessment year sequence: '{v}'"
+    return True, "Valid assessment year"
 def _amount(v: str):
-    clean = re.sub(r"[₹,\s]", "", v)
-    try: float(clean); return True, "Valid amount"
-    except: return False, f"Cannot parse amount: '{v}'"
+    original = v.strip()
+    value = original
+    accounting_negative = value.startswith("(") and value.endswith(")")
+    if accounting_negative:
+        value = value[1:-1].strip()
+    elif "(" in value or ")" in value:
+        return False, f"Invalid accounting amount: '{v}'"
+
+    currency = r"(?:INR|Rs\.?|₹|USD|\$)"
+    value = re.sub(rf"^{currency}\s*", "", value, flags=re.IGNORECASE)
+    value = re.sub(rf"\s*{currency}$", "", value, flags=re.IGNORECASE)
+    value = re.sub(r"\s+", "", value)
+
+    sign = ""
+    if value.startswith(("+", "-")):
+        sign, value = value[0], value[1:]
+    if accounting_negative and sign:
+        return False, f"Amount cannot use both parentheses and a sign: '{v}'"
+
+    plain = r"\d+(?:\.\d{1,2})?"
+    western = r"\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?"
+    indian = r"\d{1,2}(?:,\d{2})*,\d{3}(?:\.\d{1,2})?"
+    if not any(re.fullmatch(pattern, value) for pattern in (plain, western, indian)):
+        return False, f"Invalid amount format: '{v}'"
+
+    normalized = ("-" if accounting_negative else sign) + value.replace(",", "")
+    try:
+        amount = Decimal(normalized)
+        if not amount.is_finite():
+            return False, f"Amount must be finite: '{v}'"
+    except InvalidOperation:
+        return False, f"Cannot parse amount: '{v}'"
+    return True, f"Valid amount ({amount})"
 
 
 # ─── Per-document-type Validators ──────────────────────────────────────────────
@@ -73,7 +152,7 @@ def _validate_bank_statement(fields: dict) -> dict:
         "account_holder":  _check("account_holder",  fields.get("account_holder")),
         "account_number":  _check("account_number",  fields.get("account_number"), _account),
         "ifsc_code":       _check("ifsc_code",        fields.get("ifsc_code"),       _ifsc),
-        "statement_period":_check("statement_period", fields.get("statement_period")),
+        "statement_period":_check("statement_period", fields.get("statement_period"), _statement_period),
         "opening_balance": _check("opening_balance",  fields.get("opening_balance"),  _amount),
         "closing_balance": _check("closing_balance",  fields.get("closing_balance"),  _amount),
         "total_credits":   _check("total_credits",    fields.get("total_credits"),    _amount, mandatory=False),
@@ -97,7 +176,7 @@ def _validate_salary(fields: dict) -> dict:
         "company_name":     _check("company_name",     fields.get("company_name")),
         "employee_id":      _check("employee_id",      fields.get("employee_id"),   mandatory=False),
         "pan":              _check("pan",               fields.get("pan"),           _pan,    mandatory=False),
-        "month":            _check("month",             fields.get("month")),
+        "month":            _check("month",             fields.get("month"), _month_period),
         "gross_salary":     _check("gross_salary",     fields.get("gross_salary"),  _amount),
         "net_salary":       _check("net_salary",       fields.get("net_salary"),    _amount),
         "pf":               _check("pf",               fields.get("pf"),            _amount, mandatory=False),
@@ -108,7 +187,7 @@ def _validate_gst(fields: dict) -> dict:
     return {
         "gstin":          _check("gstin",          fields.get("gstin"),          _gstin),
         "business_name":  _check("business_name",  fields.get("business_name")),
-        "filing_period":  _check("filing_period",  fields.get("filing_period")),
+        "filing_period":  _check("filing_period",  fields.get("filing_period"), _month_period),
         "taxable_value":  _check("taxable_value",  fields.get("taxable_value"),  _amount),
         "cgst":           _check("cgst",           fields.get("cgst"),           _amount, mandatory=False),
         "sgst":           _check("sgst",           fields.get("sgst"),           _amount, mandatory=False),
@@ -119,7 +198,7 @@ def _validate_gst(fields: dict) -> dict:
 def _validate_itr(fields: dict) -> dict:
     return {
         "pan":              _check("pan",              fields.get("pan"),              _pan),
-        "assessment_year":  _check("assessment_year",  fields.get("assessment_year")),
+        "assessment_year":  _check("assessment_year",  fields.get("assessment_year"), _assessment_year),
         "gross_income":     _check("gross_income",     fields.get("gross_income"),     _amount),
         "tax_paid":         _check("tax_paid",         fields.get("tax_paid"),         _amount),
         "refund":           _check("refund",           fields.get("refund"),           _amount, mandatory=False),

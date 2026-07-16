@@ -86,6 +86,7 @@ Backend variables are documented in `backend/.env.example`:
 | `PROJECT_NAME` | No | FastAPI application name |
 | `API_V1_STR` | No | API prefix; default `/api/v1` |
 | `DATABASE_URL` | Yes | SQLAlchemy PostgreSQL or SQLite URL |
+| `DB_CONNECT_TIMEOUT_SECONDS` | No | PostgreSQL connection timeout; default 10 seconds |
 | `SECRET_KEY` | Yes | Long random JWT signing key |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | No | JWT lifetime |
 | `FRONTEND_ORIGIN` | Yes | Exact browser origin allowed by CORS |

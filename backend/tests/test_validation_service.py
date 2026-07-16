@@ -69,6 +69,58 @@ class ValidationServiceTests(unittest.TestCase):
         self.assertEqual(validations["duplicate_document"]["status"], "invalid")
         self.assertEqual(status, "Failed")
 
+    def test_financial_date_and_period_formats(self):
+        invoice = {
+            "invoice_number": "INV-2", "invoice_date": "15-Apr-2026",
+            "vendor_name": "Vendor", "customer_name": "Customer", "invoice_amount": "100",
+        }
+        validations, status = validate_document("Invoice", invoice)
+        self.assertEqual(validations["invoice_date"]["status"], "valid")
+        self.assertEqual(status, "Review Required")  # optional GST/tax fields are absent
+
+        bank = {
+            "bank_name": "Bank", "account_holder": "User", "account_number": "123456789",
+            "ifsc_code": "HDFC0123456", "statement_period": "01-Apr-2024 to 30-Apr-2024",
+            "opening_balance": "0", "closing_balance": "100",
+        }
+        validations, _ = validate_document("Bank Statement", bank)
+        self.assertEqual(validations["statement_period"]["status"], "valid")
+
+        gst = {"gstin": "27ABCDE1234F1Z5", "business_name": "Business", "filing_period": "March 2024", "taxable_value": "100", "total_tax": "18"}
+        validations, _ = validate_document("GST Return", gst)
+        self.assertEqual(validations["filing_period"]["status"], "valid")
+
+        itr = {"pan": "ABCDE1234F", "assessment_year": "2025-26", "gross_income": "100", "tax_paid": "10", "taxable_income": "90"}
+        validations, _ = validate_document("ITR", itr)
+        self.assertEqual(validations["assessment_year"]["status"], "valid")
+
+    def test_malformed_periods_are_invalid(self):
+        gst = {"gstin": "27ABCDE1234F1Z5", "business_name": "Business", "filing_period": "Month 99", "taxable_value": "100", "total_tax": "18"}
+        validations, status = validate_document("GST Return", gst)
+        self.assertEqual(validations["filing_period"]["status"], "invalid")
+        self.assertEqual(status, "Failed")
+
+    def test_financial_amount_formats(self):
+        valid_values = (
+            "INR 45,230.50", "INR 15,45,000.00", "₹ 1,25,000",
+            "Rs. 2,500.75", "$1,234.56", "USD 1000", "(1,250.00)", "-500.25",
+        )
+        for value in valid_values:
+            with self.subTest(value=value):
+                validations, _ = validate_document("Balance Sheet", {
+                    "total_assets": value, "total_liabilities": "0", "equity": "0",
+                })
+                self.assertEqual(validations["total_assets"]["status"], "valid")
+
+        invalid_values = ("INR twelve", "1,23,45", "12,34.567", "NaN", "Infinity", "1.2.3", "(₹ 100)-")
+        for value in invalid_values:
+            with self.subTest(value=value):
+                validations, status = validate_document("Balance Sheet", {
+                    "total_assets": value, "total_liabilities": "0", "equity": "0",
+                })
+                self.assertEqual(validations["total_assets"]["status"], "invalid")
+                self.assertEqual(status, "Failed")
+
 
 if __name__ == "__main__":
     unittest.main()

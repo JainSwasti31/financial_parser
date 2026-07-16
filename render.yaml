@@ -11,6 +11,8 @@ services:
         fromDatabase:
           name: financial-parser-db
           property: connectionString
+      - key: DB_CONNECT_TIMEOUT_SECONDS
+        value: "10"
       - key: SECRET_KEY
         generateValue: true
       - key: ACCESS_TOKEN_EXPIRE_MINUTES

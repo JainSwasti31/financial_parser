@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "./uploads"
     MAX_UPLOAD_SIZE_MB: int = 25
     MAX_BATCH_SIZE: int = 20
+    DB_CONNECT_TIMEOUT_SECONDS: int = 10
     
     OCR_PROVIDER: str = "gemini"
     AI_PROVIDER: str = "gemini"
