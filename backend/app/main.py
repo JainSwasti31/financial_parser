@@ -46,7 +46,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 @app.get("/")
-def root():
+@app.head("/")
+async def root():
     return {"message": "Welcome to the AI Financial Document Parser API"}
 
 from app.api.upload import router as upload_router
