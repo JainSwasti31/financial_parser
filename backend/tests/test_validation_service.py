@@ -1,9 +1,29 @@
 import unittest
+from unittest.mock import patch
 
+from app.parsers.itr_parser import ITRParser
 from app.services.validation_service import validate_document
 
 
 class ValidationServiceTests(unittest.TestCase):
+    @patch("app.parsers.itr_parser.gemini_extract", side_effect=RuntimeError("quota exceeded"))
+    def test_itr_falls_back_when_gemini_quota_is_exhausted(self, _mock_extract):
+        text = """INCOME TAX RETURN - ITR-1
+Assessment Year: 2024-25
+PAN: ABCDE1234F
+Gross Total Income: INR 12,50,000.00
+Total Deductions (80C, 80D): INR 1,50,000.00
+Taxable Income: INR 11,00,000.00
+Tax Paid (TDS): INR 1,80,000.00
+Refund: INR 7,500.00"""
+        fields = ITRParser().parse(text)
+        validations, status = validate_document("ITR", fields)
+
+        self.assertEqual(fields["gross_income"], "INR 12,50,000.00")
+        self.assertEqual(fields["tax_paid"], "INR 1,80,000.00")
+        self.assertEqual(validations["assessment_year"]["status"], "valid")
+        self.assertEqual(status, "Passed")
+
     def test_invalid_pan_is_flagged(self):
         fields = {
             "pan": "BAD-PAN",

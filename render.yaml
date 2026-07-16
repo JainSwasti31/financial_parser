@@ -14,5 +14,9 @@ services:
         generateValue: true
       - key: FRONTEND_ORIGIN
         sync: false
+      - key: OCR_PROVIDER
+        value: tesseract
+      - key: AI_PROVIDER
+        value: rule_based
       - key: GEMINI_API_KEY
         sync: false

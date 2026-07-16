@@ -19,8 +19,8 @@ class Settings(BaseSettings):
     MAX_BATCH_SIZE: int = 20
     DB_CONNECT_TIMEOUT_SECONDS: int = 10
     
-    OCR_PROVIDER: str = "gemini"
-    AI_PROVIDER: str = "gemini"
+    OCR_PROVIDER: str = "tesseract"
+    AI_PROVIDER: str = "rule_based"
     GEMINI_API_KEY: Optional[str] = None
     
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
