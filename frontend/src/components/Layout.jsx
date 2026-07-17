@@ -32,13 +32,14 @@ const Layout = () => {
             <Link to="/upload" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">
               Upload
             </Link>
+            {user?.role === 'Admin' && <Link to="/users" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Manage Users</Link>}
             <div className="flex items-center space-x-2 border-l border-slate-700 pl-6">
               <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center font-bold text-sm shadow-lg">
                 {user?.name?.charAt(0)?.toUpperCase()}
               </div>
-              <span className="text-sm text-slate-300 font-medium">
+              <Link to="/profile" className="text-sm text-slate-300 hover:text-white font-medium">
                 {user?.name}
-              </span>
+              </Link>
               <span className="text-xs px-2 py-1 bg-indigo-500/20 text-indigo-300 rounded-full border border-indigo-500/30">
                 {user?.role}
               </span>

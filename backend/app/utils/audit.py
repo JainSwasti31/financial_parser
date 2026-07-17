@@ -5,7 +5,7 @@ import sys
 from sqlalchemy.orm import Session
 from app.models.audit_log import AuditLog
 
-def log_action(db: Session, document_id: int, action: str, status: str, remarks: str = None, processing_time: float = None):
+def log_action(db: Session, document_id: int | None, action: str, status: str, remarks: str = None, processing_time: float = None):
     """
     Utility function to easily insert an audit log entry.
     """

@@ -16,7 +16,10 @@ security = HTTPBearer()
 ALGORITHM = "HS256"
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return pwd_context.verify(plain_password, hashed_password)
+    except (TypeError, ValueError):
+        return False
 
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
@@ -51,6 +54,8 @@ def get_current_user(
     user = db.query(User).filter(User.id == int(token_data.sub)).first()
     if user is None:
         raise credentials_exception
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This account is inactive")
     return user
 
 def require_role(allowed_roles: List[Role]):

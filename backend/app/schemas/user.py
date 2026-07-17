@@ -21,11 +21,22 @@ class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    current_password: Optional[str] = None
+    password: Optional[str] = Field(default=None, min_length=6)
+
+class UserAdminUpdate(BaseModel):
+    role: Optional[Role] = None
+    is_active: Optional[bool] = None
+
 class UserInDBBase(UserBase):
     id: int
     name: str
     email: str
     role: Role
+    is_active: bool
     created_at: datetime
     updated_at: Optional[datetime] = None
 
@@ -35,3 +46,9 @@ class UserInDBBase(UserBase):
 # Additional properties to return via API
 class UserResponse(UserInDBBase):
     pass
+
+class UserListResponse(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    items: list[UserResponse]

@@ -6,7 +6,6 @@ const Register = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('Analyst');
   const [error, setError] = useState('');
   const { register } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -14,7 +13,7 @@ const Register = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    const success = await register(name, email, password, role);
+    const success = await register(name, email, password);
     if (success) {
       navigate('/dashboard');
     } else {
@@ -80,18 +79,6 @@ const Register = () => {
                 className="appearance-none relative block w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-lg placeholder-slate-500 text-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all duration-200"
                 placeholder="••••••••"
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1" htmlFor="role">Role</label>
-              <select
-                id="role"
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                className="appearance-none relative block w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all duration-200"
-              >
-                <option value="Analyst">Analyst</option>
-                <option value="Admin">Admin</option>
-              </select>
             </div>
           </div>
 

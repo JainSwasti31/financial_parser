@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.models.document import Document, ProcessingStatus
 from app.models.user import User, Role
 from app.models.report import ParsedReport
+from app.models.audit_log import AuditLog
 from app.utils.audit import log_action
 from app.core.config import settings
 
@@ -167,9 +168,10 @@ def delete_document_by_id(db: Session, doc_id: int):
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
         
-    # Delete from filesystem
-    if os.path.exists(doc.file_path):
-        os.remove(doc.file_path)
-        
+    file_path = doc.file_path
+    db.query(ParsedReport).filter(ParsedReport.document_id == doc_id).delete(synchronize_session=False)
+    db.query(AuditLog).filter(AuditLog.document_id == doc_id).delete(synchronize_session=False)
     db.delete(doc)
     db.commit()
+    if file_path and os.path.exists(file_path):
+        os.remove(file_path)

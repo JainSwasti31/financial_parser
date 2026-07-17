@@ -53,6 +53,13 @@ export const deleteDocument = (id) => {
   return api.delete(`/documents/${id}`);
 };
 
+export const getUsers = (page = 1, pageSize = 10) =>
+  api.get('/users', { params: { page, page_size: pageSize } });
+
+export const updateUser = (id, updates) => api.patch(`/users/${id}`, updates);
+
+export const deleteUser = (id) => api.delete(`/users/${id}`);
+
 // Parser API Methods
 export const processDocument = (id) => {
   return api.post(`/parser/process/${id}`);

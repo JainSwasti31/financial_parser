@@ -220,6 +220,7 @@ For production, place uploaded files on a persistent disk or migrate storage to 
 - One parsed report represents the latest state of a document.
 - Approved exports must have a manually approved report and recorded reviewer.
 - Admins can access all documents; Analysts access documents they uploaded.
+- Both Admin and Analyst roles can view the dashboard — the dashboard is treated as informational and not gated to Admin only.
 - PostgreSQL is the production database.
 - Uploaded documents are private and are not mounted as public static assets.
 - Tesseract is available for scanned documents; Gemini credentials and internet access are available for structured extraction.
@@ -236,9 +237,8 @@ For production, place uploaded files on a persistent disk or migrate storage to 
 - Confidence scores are deterministic heuristics based on validation and OCR evidence, not probabilities from a trained confidence model.
 - Signature detection is heuristic and indicates candidate regions, not cryptographic signature authenticity.
 - Table extraction quality depends on PDF layout; scanned tables may require a specialized vision model.
-- Public self-registration currently permits selecting a role and should be restricted before an untrusted production launch.
 - The backend requires `SECRET_KEY` from the environment, but production deployments should additionally use a managed secret store and rotation policy.
-- Admin user-management UI/API, account deactivation, global toast notifications, and a global error boundary are not implemented.
+- Global toast notifications and a global error boundary are not implemented.
 - Uploads use local/persistent-disk storage rather than object storage; deployments without a persistent disk lose files on restart/redeploy.
 - Gemini free-tier limits can still affect structured extraction for document types without deterministic fallbacks. Tesseract OCR and rule-based classification reduce normal Gemini usage to approximately one structured-extraction request per document.
 - Filename-based type inference is used only as a filter fallback before parsing.
@@ -247,7 +247,6 @@ For production, place uploaded files on a persistent disk or migrate storage to 
 
 ## Future Improvements
 
-- Add Admin-only user management and active-account enforcement.
 - Move OCR/parsing to Celery, RQ, or a managed queue with independent DB sessions.
 - Add WebSocket or Server-Sent Events progress delivery when moving to distributed workers.
 - Add streaming upload limits, MIME-signature validation, atomic concurrent-upload handling, and S3 storage.

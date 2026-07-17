@@ -20,7 +20,7 @@ class Document(Base):
     document_name = Column(String, index=True)
     document_type = Column(String, index=True)
     file_path = Column(String)
-    uploaded_by = Column(Integer, ForeignKey("users.id"))
+    uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     status = Column(SAEnum(ProcessingStatus), default=ProcessingStatus.Uploaded)
     processing_time = Column(Float, nullable=True) # Time taken in seconds
     processing_progress = Column(Integer, default=0, nullable=False)

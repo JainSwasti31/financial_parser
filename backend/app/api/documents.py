@@ -57,5 +57,5 @@ def delete_document(
 ):
     delete_document_by_id(db, document_id)
     # Log deletion
-    log_action(db, document_id, "Document Deleted", "Success", f"Deleted by Admin {current_user.email}")
+    log_action(db, None, "Document Deleted", "Success", f"Document {document_id} deleted by Admin {current_user.email}")
     return {"message": "Document deleted successfully"}

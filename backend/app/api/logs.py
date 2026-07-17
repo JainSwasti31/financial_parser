@@ -12,7 +12,7 @@ router = APIRouter()
 
 @router.get("/")
 def list_logs(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100), document_id: int | None = None, action: str | None = None, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    query = db.query(AuditLog).join(Document, AuditLog.document_id == Document.id)
+    query = db.query(AuditLog).outerjoin(Document, AuditLog.document_id == Document.id)
     if current_user.role != Role.Admin:
         query = query.filter(Document.uploaded_by == current_user.id)
     if document_id is not None:

@@ -68,6 +68,7 @@ from app.api.review import router as review_router
 from app.api.reports import router as reports_router
 from app.api.dashboard import router as dashboard_router
 from app.api.logs import router as logs_router
+from app.api.users import router as users_router
 
 # Register Routers
 app.include_router(auth_router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"])
@@ -78,3 +79,4 @@ app.include_router(review_router, prefix=f"{settings.API_V1_STR}/review", tags=[
 app.include_router(reports_router, prefix=f"{settings.API_V1_STR}/reports", tags=["reports"])
 app.include_router(dashboard_router, prefix=f"{settings.API_V1_STR}/dashboard", tags=["dashboard"])
 app.include_router(logs_router, prefix=f"{settings.API_V1_STR}/logs", tags=["logs"])
+app.include_router(users_router, prefix=f"{settings.API_V1_STR}/users", tags=["users"])

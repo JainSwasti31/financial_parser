@@ -17,7 +17,7 @@ class DocumentResponse(DocumentBase):
     id: int
     file_path: str
     file_hash: Optional[str] = None
-    uploaded_by: int
+    uploaded_by: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
     

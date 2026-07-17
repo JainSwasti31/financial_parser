@@ -12,6 +12,8 @@ import Reports from './pages/Reports';
 import ReportDetail from './pages/ReportDetail';
 import AuditLogs from './pages/AuditLogs';
 import Layout from './components/Layout';
+import ManageUsers from './pages/ManageUsers';
+import ProfilePage from './pages/ProfilePage';
 import './index.css';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -35,6 +37,10 @@ function App() {
               <Route path="/reports" element={<Reports />} />
               <Route path="/reports/:id" element={<ReportDetail />} />
               <Route path="/logs" element={<AuditLogs />} />
+              <Route path="/profile" element={<ProfilePage />} />
+              <Route element={<ProtectedRoute allowedRoles={['Admin']} />}>
+                <Route path="/users" element={<ManageUsers />} />
+              </Route>
               <Route element={<ProtectedRoute allowedRoles={['Admin', 'Analyst']} />}>
                 <Route path="/review/:id" element={<ReviewPage />} />
               </Route>
