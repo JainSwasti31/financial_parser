@@ -16,9 +16,12 @@ Overall validation_status:
   - "Failed"           — mandatory fields missing or invalid
 """
 import re
+import logging
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Dict, Any, Tuple
+
+logger = logging.getLogger(__name__)
 
 
 # ─── Regex Patterns ────────────────────────────────────────────────────────────
@@ -42,6 +45,7 @@ def _check(field: str, value, validator_fn=None, mandatory: bool = True) -> dict
         }
     if validator_fn:
         ok, msg = validator_fn(val)
+        logger.info("Validation regex check field=%s value=%r valid=%s", field, val, ok)
         return {"value": val, "status": "valid" if ok else "invalid", "message": msg, "mandatory": mandatory}
     return {"value": val, "status": "valid", "message": "OK", "mandatory": mandatory}
 
@@ -166,6 +170,9 @@ def _validate_invoice(fields: dict) -> dict:
         "vendor_name":     _check("vendor_name",      fields.get("vendor_name")),
         "customer_name":   _check("customer_name",    fields.get("customer_name")),
         "gst_number":      _check("gst_number",       fields.get("gst_number"),      _gstin, mandatory=False),
+        "pan":             _check("pan",              fields.get("pan"),             _pan, mandatory=False),
+        "ifsc_code":       _check("ifsc_code",        fields.get("ifsc_code"),       _ifsc, mandatory=False),
+        "account_number":  _check("account_number",   fields.get("account_number"),  _account, mandatory=False),
         "invoice_amount":  _check("invoice_amount",   fields.get("invoice_amount"),  _amount),
         "tax_amount":      _check("tax_amount",       fields.get("tax_amount"),      _amount, mandatory=False),
     }
@@ -275,5 +282,11 @@ def validate_document(doc_type: str, parsed_fields: dict, duplicate: bool = Fals
         overall = "Review Required"
     else:
         overall = "Passed"
+
+    logger.info(
+        "Document validation completed type=%s overall=%s results=%s",
+        doc_type, overall,
+        {field: result["status"] for field, result in field_validations.items()},
+    )
 
     return field_validations, overall

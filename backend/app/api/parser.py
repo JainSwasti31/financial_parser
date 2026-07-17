@@ -8,6 +8,9 @@ from app.models.document import Document, ProcessingStatus
 from app.models.report import ParsedReport
 from app.services.parser_service import process_document_task
 from pydantic import BaseModel, Field
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -139,7 +142,7 @@ def get_result(
         ParsedReport.document_id == document_id
     ).first()
 
-    return {
+    response = {
         "document_id": document_id,
         "document_name": doc.document_name,
         "status": doc.status.value,
@@ -158,3 +161,10 @@ def get_result(
             "review_status": report.review_status if report else None,
         } if report else None
     }
+    logger.info(
+        "Parser result response document_id=%s status=%s validation_status=%s field_validations=%s",
+        document_id, doc.status.value,
+        report.validation_status if report else None,
+        {field: result.get("status") for field, result in (report.field_validations or {}).items()} if report else {},
+    )
+    return response

@@ -3,6 +3,7 @@ Parser Service — Orchestrator: OCR → Classify → Parse → Save → Update 
 """
 import os
 import time
+import logging
 from sqlalchemy.orm import Session
 
 from app.models.document import Document, ProcessingStatus
@@ -12,6 +13,8 @@ from app.services.ai_service import get_ai_classifier, calculate_field_confidenc
 from app.services.rich_extraction_service import extract_rich_content
 from app.utils.audit import log_action
 from app.core.database import SessionLocal
+
+logger = logging.getLogger(__name__)
 
 
 def process_document_task(document_id: int) -> None:
@@ -187,6 +190,11 @@ def process_document(document_id: int, db: Session) -> dict:
         existing_report.remarks           = None  # Reset on reprocess
         existing_report.reviewed_by        = None
         db.commit()
+        logger.info(
+            "Updated parsed report document_id=%s report_id=%s validation_status=%s field_validations=%s",
+            document_id, existing_report.id, validation_status,
+            {field: result["status"] for field, result in field_validations.items()},
+        )
     else:
         report = ParsedReport(
             document_id=document_id,
@@ -197,6 +205,12 @@ def process_document(document_id: int, db: Session) -> dict:
         )
         db.add(report)
         db.commit()
+        db.refresh(report)
+        logger.info(
+            "Saved parsed report document_id=%s report_id=%s validation_status=%s field_validations=%s",
+            document_id, report.id, validation_status,
+            {field: result["status"] for field, result in field_validations.items()},
+        )
 
     # Update document status and processing time
     doc.status = new_doc_status

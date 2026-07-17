@@ -42,6 +42,11 @@ const ReviewPage = () => {
     setError('');
     try {
       const res = await getReview(id);
+      console.debug('[validation] review response', {
+        documentId: id,
+        validationStatus: res.data.validation_status,
+        fieldValidations: res.data.field_validations,
+      });
       setData(res.data);
       setEditedFields({ ...res.data.parsed_fields });
       setValidations(res.data.field_validations || {});

@@ -1,11 +1,35 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.parsers.itr_parser import ITRParser
+from app.parsers.invoice_parser import InvoiceParser
 from app.services.validation_service import validate_document
+from app.services.parser_service import process_document
+from app.api.parser import get_result
+from app.core.database import Base
+from app.models.document import Document, ProcessingStatus
+from app.models.report import ParsedReport
+from app.models.user import Role, User
+from app.models.audit_log import AuditLog
 
 
 class ValidationServiceTests(unittest.TestCase):
+    @patch("app.parsers.invoice_parser.gemini_extract", return_value='{"invoice_number":"INV-1","gstin":"29ABCDE123"}')
+    def test_invoice_parser_normalizes_aliases_and_extracts_identifiers_from_text(self, _mock_extract):
+        fields = InvoiceParser().parse("""TAX INVOICE
+GST Number: 29ABCDE123
+PAN: BXPP54321
+IFSC Code: nova12
+Account Number: 5010""")
+
+        self.assertEqual(fields["gst_number"], "29ABCDE123")
+        self.assertEqual(fields["pan"], "BXPP54321")
+        self.assertEqual(fields["ifsc_code"], "nova12")
+        self.assertEqual(fields["account_number"], "5010")
+
     @patch("app.parsers.itr_parser.gemini_extract", side_effect=RuntimeError("quota exceeded"))
     def test_itr_falls_back_when_gemini_quota_is_exhausted(self, _mock_extract):
         text = """INCOME TAX RETURN - ITR-1
@@ -51,6 +75,70 @@ Refund: INR 7,500.00"""
 
         self.assertEqual(validations["gstin"]["status"], "invalid")
         self.assertEqual(status, "Failed")
+
+    def test_invoice_flags_present_invalid_tax_and_bank_identifiers(self):
+        fields = {
+            "invoice_number": "INV-INVALID-1", "invoice_date": "17-07-2026",
+            "vendor_name": "Vendor", "customer_name": "Customer",
+            "gst_number": "29ABCDE123", "pan": "BXPP54321",
+            "ifsc_code": "nova12", "account_number": "5010",
+            "invoice_amount": "1180",
+        }
+        validations, status = validate_document("Invoice", fields)
+        for field in ("gst_number", "pan", "ifsc_code", "account_number"):
+            with self.subTest(field=field):
+                self.assertEqual(validations[field]["status"], "invalid")
+        self.assertEqual(status, "Review Required")
+
+    @patch("app.services.parser_service.extract_rich_content", return_value={})
+    @patch("app.services.parser_service._get_parser")
+    @patch("app.services.parser_service.get_ai_classifier")
+    @patch("app.services.parser_service.get_ocr_provider")
+    def test_invoice_pipeline_persists_and_api_returns_field_validations(
+        self, get_ocr_provider, get_ai_classifier, get_parser, _extract_rich_content
+    ):
+        engine = create_engine(
+            "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+        )
+        Base.metadata.create_all(engine)
+        db = sessionmaker(bind=engine)()
+        try:
+            user = User(name="Analyst", email="pipeline@example.com", password_hash="x", role=Role.Analyst)
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            document = Document(
+                document_name="invalid-invoice.pdf", document_type="PDF",
+                file_path="invalid-invoice.pdf", uploaded_by=user.id,
+                status=ProcessingStatus.Uploaded, file_size=100,
+                file_hash="pipeline-invalid-invoice",
+            )
+            db.add(document)
+            db.commit()
+            db.refresh(document)
+
+            get_ocr_provider.return_value.extract_text.return_value = ("invoice text with invalid identifiers", 0.01)
+            get_ai_classifier.return_value.classify.return_value = "Invoice"
+            parser = MagicMock()
+            parser.parse.return_value = {
+                "invoice_number": "INV-1", "invoice_date": "17-07-2026",
+                "vendor_name": "Vendor", "customer_name": "Customer",
+                "gst_number": "29ABCDE123", "pan": "BXPP54321",
+                "ifsc_code": "nova12", "account_number": "5010",
+                "invoice_amount": "100",
+            }
+            get_parser.return_value = parser
+
+            process_document(document.id, db)
+            report = db.query(ParsedReport).filter_by(document_id=document.id).one()
+            self.assertEqual(report.validation_status, "Review Required")
+            self.assertEqual(report.field_validations["pan"]["status"], "invalid")
+
+            response = get_result(document.id, user, db)
+            self.assertEqual(response["report"]["validation_status"], "Review Required")
+            self.assertEqual(response["report"]["field_validations"]["gst_number"]["status"], "invalid")
+        finally:
+            db.close()
 
     def test_invalid_ifsc_then_corrected_fields_pass(self):
         fields = {

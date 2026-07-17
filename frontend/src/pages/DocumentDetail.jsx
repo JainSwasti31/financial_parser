@@ -35,6 +35,11 @@ const DocumentDetail = () => {
       ]);
       if (docRes.status === 'fulfilled') setDoc(docRes.value.data);
       if (resultRes.status === 'fulfilled') {
+        console.debug('[validation] parser result', {
+          documentId: id,
+          validationStatus: resultRes.value.data.report?.validation_status,
+          fieldValidations: resultRes.value.data.report?.field_validations,
+        });
         setResult(resultRes.value.data);
         if (resultRes.value.data.status === 'Processing' && !pollRef.current) startPolling();
       }
@@ -51,6 +56,11 @@ const DocumentDetail = () => {
     pollRef.current = setInterval(async () => {
       try {
         const res = await getParserResult(id);
+        console.debug('[validation] parser poll result', {
+          documentId: id,
+          validationStatus: res.data.report?.validation_status,
+          fieldValidations: res.data.report?.field_validations,
+        });
         setResult(res.data);
         setDoc(prev => ({ ...prev, status: res.data.status }));
         if (res.data.status !== 'Processing') {
@@ -141,6 +151,17 @@ const DocumentDetail = () => {
               {docType && (
                 <span className="px-3 py-1 bg-violet-500/20 text-violet-300 text-xs font-semibold rounded-full border border-violet-500/30">
                   {docType}
+                </span>
+              )}
+              {validationStatus && (
+                <span className={`px-3 py-1 text-xs font-semibold rounded-full border ${
+                  validationStatus === 'Passed'
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                    : validationStatus === 'Failed'
+                      ? 'bg-red-500/20 text-red-300 border-red-500/30'
+                      : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                }`}>
+                  Validation: {validationStatus}
                 </span>
               )}
             </div>
@@ -247,6 +268,7 @@ const DocumentDetail = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {Object.entries(parsedFields).filter(([k]) => k !== 'error').map(([key, value]) => {
                   const label = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                  const fieldValidation = fieldValidations[key];
                   if (Array.isArray(value)) {
                     return (
                       <div key={key} className="col-span-full">
@@ -275,9 +297,26 @@ const DocumentDetail = () => {
                     );
                   }
                   return (
-                    <div key={key} className="bg-slate-700/20 rounded-xl p-4 border border-slate-700/30">
-                      <p className="text-xs text-slate-500 uppercase font-semibold mb-1">{label}</p>
+                    <div key={key} className={`bg-slate-700/20 rounded-xl p-4 border ${
+                      fieldValidation?.status === 'invalid' ? 'border-red-500/60' :
+                      fieldValidation?.status === 'missing' ? 'border-amber-500/60' : 'border-slate-700/30'
+                    }`}>
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <p className="text-xs text-slate-500 uppercase font-semibold">{label}</p>
+                        {fieldValidation && (
+                          <span className={`px-2 py-0.5 text-xs font-semibold rounded-full border ${
+                            fieldValidation.status === 'valid' ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' :
+                            fieldValidation.status === 'invalid' ? 'bg-red-500/15 text-red-300 border-red-500/30' :
+                            'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                          }`}>{fieldValidation.status}</span>
+                        )}
+                      </div>
                       <p className="text-white font-medium">{value ?? '—'}</p>
+                      {fieldValidation && fieldValidation.status !== 'valid' && (
+                        <p className={fieldValidation.status === 'invalid' ? 'text-xs text-red-400 mt-1' : 'text-xs text-amber-400 mt-1'}>
+                          {fieldValidation.message}
+                        </p>
+                      )}
                     </div>
                   );
                 })}
