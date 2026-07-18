@@ -22,15 +22,6 @@ local_origins = {"http://localhost:5173", "http://127.0.0.1:5173"}
 if frontend_origin in local_origins:
     allowed_origins = sorted(local_origins)
 
-# CORS setup
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # Consistent error format: { "error": { "code": ..., "message": ... } }
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
@@ -80,3 +71,14 @@ app.include_router(reports_router, prefix=f"{settings.API_V1_STR}/reports", tags
 app.include_router(dashboard_router, prefix=f"{settings.API_V1_STR}/dashboard", tags=["dashboard"])
 app.include_router(logs_router, prefix=f"{settings.API_V1_STR}/logs", tags=["logs"])
 app.include_router(users_router, prefix=f"{settings.API_V1_STR}/users", tags=["users"])
+
+# Wrap the entire application so even unhandled server-error responses carry
+# CORS headers. Starlette's outer error middleware otherwise sits outside
+# add_middleware(CORSMiddleware) and can make a backend 500 look like CORS.
+app = CORSMiddleware(
+    app=app,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)

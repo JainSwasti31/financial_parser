@@ -20,4 +20,6 @@ COPY run.py ./
 
 RUN mkdir -p /app/uploads
 
-CMD ["python", "run.py"]
+# Keep the production schema current before accepting requests. Alembic is a
+# no-op when the database is already at head.
+CMD ["sh", "-c", "alembic upgrade head && python run.py"]
