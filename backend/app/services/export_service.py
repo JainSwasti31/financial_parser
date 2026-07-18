@@ -105,6 +105,26 @@ def _pdf_page(canvas, document):
     canvas.restoreState()
 
 
+def _pdf_value_chunks(value: str, max_chars: int = 1200, max_lines: int = 30) -> list[str]:
+    """Keep any single PDF table row small enough to fit on a page."""
+    text = str(value)
+    source_lines = text.splitlines() or [text]
+    chunks, current, current_chars = [], [], 0
+    for source_line in source_lines:
+        # Long unbroken values such as hashes or compact JSON still need
+        # bounded chunks so ReportLab can paginate them.
+        pieces = [source_line[index:index + max_chars] for index in range(0, len(source_line), max_chars)] or [""]
+        for piece in pieces:
+            if current and (len(current) >= max_lines or current_chars + len(piece) > max_chars):
+                chunks.append("\n".join(current))
+                current, current_chars = [], 0
+            current.append(piece)
+            current_chars += len(piece)
+    if current:
+        chunks.append("\n".join(current))
+    return chunks or ["—"]
+
+
 def generate_pdf(report) -> bytes:
     data = serialize_report(report)
     output = BytesIO()
@@ -142,8 +162,16 @@ def generate_pdf(report) -> bytes:
         grouped.setdefault(section, []).append((field, value))
     for section, rows in grouped.items():
         story.append(Paragraph(escape(section), section_style))
-        table_data = [[Paragraph(escape(str(field)), field_style), Paragraph(escape(str(value)).replace("\n", "<br/>"), value_style)] for field, value in rows]
-        table = Table(table_data, colWidths=[48 * mm, 120 * mm], repeatRows=0, hAlign="LEFT")
+        table_data = []
+        for field, value in rows:
+            chunks = _pdf_value_chunks(value)
+            for chunk_index, chunk in enumerate(chunks):
+                display_field = field if chunk_index == 0 else f"{field} (continued)"
+                table_data.append([
+                    Paragraph(escape(str(display_field)), field_style),
+                    Paragraph(escape(chunk).replace("\n", "<br/>"), value_style),
+                ])
+        table = Table(table_data, colWidths=[48 * mm, 120 * mm], repeatRows=0, hAlign="LEFT", splitByRow=1)
         commands = [
             ("GRID", (0, 0), (-1, -1), 0.35, BORDER),
             ("VALIGN", (0, 0), (-1, -1), "TOP"),

@@ -72,6 +72,24 @@ class ReportExportTests(unittest.TestCase):
         logs = self.db.query(AuditLog).filter(AuditLog.action == "Report Generated").all()
         self.assertEqual(len(logs), 3)
 
+    def test_pdf_paginates_oversized_extracted_values(self):
+        self.report.parsed_data = {
+            "document_type": "Bank Statement",
+            "parsed_fields": {
+                "transactions": [
+                    {"date": "2026-01-01", "description": "Long transaction description " * 5, "amount": index}
+                    for index in range(150)
+                ]
+            },
+            "rich_content": {"tables": [], "signatures": [], "qr_codes": []},
+        }
+        self.db.commit()
+
+        pdf = generate_pdf(self.report)
+
+        self.assertTrue(pdf.startswith(b"%PDF"))
+        self.assertGreater(len(pdf), 1000)
+
 
 if __name__ == "__main__":
     unittest.main()
