@@ -149,7 +149,20 @@ def process_document(document_id: int, db: Session) -> dict:
     field_validations, validation_status = validate_document(doc_type, parsed_data, duplicate=duplicate)
     field_confidences = calculate_field_confidences(parsed_data, raw_text, field_validations)
     _set_progress(db, doc, 82, "Extracting tables, signatures, and QR codes")
-    rich_content = extract_rich_content(doc.file_path)
+
+    def rich_progress(completed_pages: int, total_pages: int) -> None:
+        # Avoid a database write for every page while still showing that large
+        # documents are making progress through this CPU-heavy stage.
+        if completed_pages == 1 or completed_pages == total_pages or completed_pages % 5 == 0:
+            progress = 82 + min(2, int((completed_pages / max(total_pages, 1)) * 3))
+            _set_progress(
+                db,
+                doc,
+                progress,
+                f"Extracting tables, signatures, and QR codes ({completed_pages}/{total_pages} pages)",
+            )
+
+    rich_content = extract_rich_content(doc.file_path, progress_callback=rich_progress)
     log_action(db, document_id, "Validation Completed", validation_status,
                f"Fields checked: {len(field_validations)}, Overall: {validation_status}")
 

@@ -3,6 +3,7 @@
 Detector failures never fail the core OCR pipeline; they return empty results.
 """
 import os
+from collections.abc import Callable
 from typing import Any
 
 
@@ -45,15 +46,18 @@ def _detect_qr_and_signatures(image, page_number: int) -> tuple[list[dict], list
         return [], []
 
 
-def extract_rich_content(file_path: str) -> dict[str, Any]:
+def extract_rich_content(
+    file_path: str,
+    progress_callback: Callable[[int, int], None] | None = None,
+) -> dict[str, Any]:
     result = {"tables": [], "signatures": [], "qr_codes": []}
     try:
         from PIL import Image
         extension = os.path.splitext(file_path)[1].lower()
-        images = []
         if extension == ".pdf":
             import fitz
             document = fitz.open(file_path)
+            total_pages = len(document)
             for page_index, page in enumerate(document):
                 try:
                     finder = page.find_tables()
@@ -63,16 +67,26 @@ def extract_rich_content(file_path: str) -> dict[str, Any]:
                             result["tables"].append({"page": page_index + 1, "table": table_index + 1, "rows": rows})
                 except Exception:
                     pass
+                # Process and release each rendered page immediately. Keeping
+                # every page image in a list can exhaust memory on large PDFs.
                 pixmap = page.get_pixmap(dpi=150, alpha=False)
-                images.append((page_index + 1, Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)))
+                image = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
+                qr_codes, signatures = _detect_qr_and_signatures(image, page_index + 1)
+                result["qr_codes"].extend(qr_codes)
+                result["signatures"].extend(signatures)
+                image.close()
+                del image, pixmap
+                if progress_callback:
+                    progress_callback(page_index + 1, total_pages)
             document.close()
         else:
-            images.append((1, Image.open(file_path)))
-
-        for page_number, image in images:
-            qr_codes, signatures = _detect_qr_and_signatures(image, page_number)
+            image = Image.open(file_path)
+            qr_codes, signatures = _detect_qr_and_signatures(image, 1)
             result["qr_codes"].extend(qr_codes)
             result["signatures"].extend(signatures)
+            image.close()
+            if progress_callback:
+                progress_callback(1, 1)
     except Exception:
         pass
     return result
