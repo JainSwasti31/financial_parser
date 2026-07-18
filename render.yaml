@@ -13,7 +13,7 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: FRONTEND_ORIGIN
-        sync: false
+        value: https://financial-parser-nu.vercel.app
       - key: OCR_PROVIDER
         value: tesseract
       - key: AI_PROVIDER
